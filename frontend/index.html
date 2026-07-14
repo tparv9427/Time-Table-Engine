@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OptiSchedule - Interactive Timetable Platform</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app-container">
+        <!-- 1. Wizard Stepper Container (File Ingestion flow) -->
+        <div id="wizard-container" class="view">
+            <div class="wizard-card glass">
+                <div class="brand">
+                    <div class="logo">⚙️</div>
+                    <h2>OptiSchedule Creator</h2>
+                </div>
+                
+                <!-- Stepper Progress Indicators -->
+                <div class="stepper-progress">
+                    <div class="step-node active" data-step="1">1<span>Workspace</span></div>
+                    <div class="step-line"></div>
+                    <div class="step-node" data-step="2">2<span>Template</span></div>
+                    <div class="step-line"></div>
+                    <div class="step-node" data-step="3">3<span>Upload</span></div>
+                </div>
+
+                <!-- Wizard Steps Form -->
+                <form id="wizard-form" onsubmit="return false;">
+                    <!-- Step 1: Org name -->
+                    <div class="wizard-step active" id="step-1">
+                        <h3>Workspace Setup</h3>
+                        <p class="step-subtitle">Start by naming your institution to initialize the solver workspace.</p>
+                        <div class="input-group">
+                            <label for="wiz-org-name">Organization Name</label>
+                            <input type="text" id="wiz-org-name" placeholder="e.g. Science Academy" required>
+                        </div>
+                        <div class="wizard-actions">
+                            <button type="button" class="btn-primary" onclick="nextStep(2)">Continue</button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Download Template -->
+                    <div class="wizard-step" id="step-2">
+                        <h3>Download Scheduling Template</h3>
+                        <p class="step-subtitle">We have created a locked, password-protected spreadsheet template matching your exact columns. Fill in your teachers, class assignments, and natural language constraints.</p>
+                        
+                        <div class="template-download-box glass">
+                            <div class="doc-icon">📊</div>
+                            <div class="doc-details">
+                                <h4>Time_Table_Template.xlsx</h4>
+                                <span class="text-muted">Password Locked Structure | Locked Headers</span>
+                            </div>
+                            <a href="Time_Table_Template.xlsx" download="Time_Table_Template.xlsx" class="btn-primary" style="text-decoration:none;">Download File</a>
+                        </div>
+
+                        <div class="wizard-actions">
+                            <button type="button" class="btn-secondary" onclick="prevStep(1)">Back</button>
+                            <button type="button" class="btn-primary" onclick="nextStep(3)">Continue</button>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Drag & Drop Ingestion -->
+                    <div class="wizard-step" id="step-3">
+                        <h3>Upload Completed Roster</h3>
+                        <p class="step-subtitle">Drag and drop the filled Excel sheet to run constraints, resolve conflicts, and solve the CP-SAT model.</p>
+                        
+                        <div class="upload-zone" id="drop-zone">
+                            <div class="upload-icon">📤</div>
+                            <p class="primary-text">Drag & drop your populated template here</p>
+                            <p class="secondary-text">or click to browse local files</p>
+                            <input type="file" id="file-input" accept=".xlsx" class="hidden">
+                        </div>
+
+                        <div class="selected-file-info hidden" id="file-info-container">
+                            <span class="file-name" id="file-name-display">filename.xlsx</span>
+                            <button type="button" class="btn-primary" id="wizard-submit-btn" style="width: auto;">Generate & Solve</button>
+                        </div>
+
+                        <div class="validation-errors-container hidden" id="validation-errors-box">
+                            <h4>⚠️ Template Violations Found:</h4>
+                            <ul id="validation-errors-list">
+                                <!-- Listed here -->
+                            </ul>
+                        </div>
+
+                        <div class="wizard-actions">
+                            <button type="button" class="btn-secondary" onclick="prevStep(2)">Back</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 2. Main Dashboard & Grid View (Hidden until solver runs) -->
+        <div id="dashboard-view" class="view hidden">
+            <aside class="sidebar glass">
+                <div class="brand-sidebar">
+                    <div class="logo-small">⚙️</div>
+                    <h3>OptiSchedule</h3>
+                </div>
+                <nav class="nav-menu">
+                    <a href="#" class="nav-item active" id="nav-schedule">📅 Timetable Grid</a>
+                    <a href="#" class="nav-item" id="nav-logs">📜 Audit Status</a>
+                </nav>
+                <div class="org-footer">
+                    <div class="avatar">O</div>
+                    <div class="org-details">
+                        <span id="active-org-name">Workspace</span>
+                        <span class="badge" id="active-org-sub">science-academy</span>
+                    </div>
+                    <button id="change-org-btn" class="btn-icon" title="Reset and Create New">🔄</button>
+                </div>
+            </aside>
+
+            <main class="main-content">
+                <!-- Schedule View -->
+                <div id="section-timetable" class="content-section active">
+                    <header class="section-header">
+                        <div>
+                            <h1>Weekly Timetable</h1>
+                            <p class="text-muted" id="timetable-title-desc">Mathematically solved conflict-free roster.</p>
+                        </div>
+                        <div class="actions">
+                            <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 8px 14px; border-radius: 8px; font-size: 0.8rem;">
+                                VERIFIED: Zero Conflicts
+                            </span>
+                        </div>
+                    </header>
+
+                    <!-- Filter Controls -->
+                    <div class="control-card glass">
+                        <div class="filter-tabs">
+                            <button class="tab-btn active" id="tab-class">Class View</button>
+                            <button class="tab-btn" id="tab-teacher">Teacher View</button>
+                        </div>
+                        <div class="select-group">
+                            <label for="view-selector" id="select-label">Select Class:</label>
+                            <select id="view-selector">
+                                <!-- Injected -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Timetable Grid -->
+                    <div class="timetable-container glass">
+                        <div id="timetable-placeholder" class="grid-placeholder hidden">
+                            <div class="spinner" id="solver-spinner"></div>
+                            <span id="placeholder-text">Resolving CSP equations...</span>
+                        </div>
+                        <table id="timetable-grid">
+                            <thead>
+                                <tr id="grid-header-row">
+                                    <th>Slot / Period</th>
+                                    <!-- Days injected dynamically -->
+                                </tr>
+                            </thead>
+                            <tbody id="grid-body">
+                                <!-- Injected -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Logs/Audit View -->
+                <div id="section-logs" class="content-section hidden">
+                    <header class="section-header">
+                        <div>
+                            <h1>Solver History & Audit Logs</h1>
+                            <p class="text-muted">Review previous solver performance, objectives, and audit details.</p>
+                        </div>
+                    </header>
+                    <div class="table-container glass">
+                        <table id="logs-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Solver Status</th>
+                                    <th>Validator Verdict</th>
+                                    <th>Details / Violations</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Injected -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Manual Edit Modal -->
+    <div id="modal-edit" class="modal hidden">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Manual Period Overrides</h2>
+                <button class="btn-icon" onclick="closeEditModal()">✕</button>
+            </div>
+            <p id="edit-slot-desc" class="text-muted"></p>
+            <form id="edit-form">
+                <input type="hidden" id="edit-day">
+                <input type="hidden" id="edit-slot">
+                <input type="hidden" id="edit-group-id">
+
+                <div class="input-group">
+                    <label for="edit-resource">Assign Teacher</label>
+                    <select id="edit-resource" required>
+                        <!-- Injected -->
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="edit-task">Assign Subject</label>
+                    <input type="text" id="edit-task" placeholder="e.g. Mathematics" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Verify & Save</button>
+                </div>
+            </form>
+            <div id="edit-error-box" class="edit-error-container hidden">
+                <h4>⚠️ Constraint Violations Detected:</h4>
+                <ul id="edit-error-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden"></div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
